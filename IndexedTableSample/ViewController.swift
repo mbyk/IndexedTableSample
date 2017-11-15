@@ -30,7 +30,7 @@ struct SectionInfo<T> {
 
 protocol SectionIndexedProvider {
     associatedtype Item
-    var sectoinDataSource: [Item] { get set }
+    var sectionDataSource: [Item] { get set }
     
     func unsortedSectionInfos(sortSelector: Selector) -> [SectionInfo<Item>]
     func sortedSectionInfos(sortSelector: Selector) -> [SectionInfo<Item>]
@@ -45,7 +45,7 @@ extension SectionIndexedProvider {
         }
         
         // 一時データを該当するセクション情報に割り当てる
-        sectoinDataSource.forEach {
+        sectionDataSource.forEach {
             let index = UILocalizedIndexedCollation.current().section(for: $0, collationStringSelector: sortSelector)
             sectionInfos[index].items.append($0)
         }
@@ -71,7 +71,7 @@ class ViewController: UIViewController {
         }
     }
     
-    lazy var sectoinDataSource: [Store] = {
+    lazy var sectionDataSource: [Store] = {
         var _datas = [Store]()
         _datas.append(Store(
             branchName: "新宿店",

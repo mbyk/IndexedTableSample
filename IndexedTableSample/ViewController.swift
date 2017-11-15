@@ -19,13 +19,47 @@ class Store: NSObject {
     }
 }
 
-struct SectionInfo {
+struct SectionInfo<T> {
     
     // セクションタイトル
     var sectionTitle: String
 
     // セクション内のデータ配列
-    var items: [Store]
+    var items: [T]
+}
+
+protocol SectionIndexedProvider {
+    associatedtype Item
+    var sectoinDataSource: [Item] { get set }
+    
+    func unsortedSectionInfos(sortSelector: Selector) -> [SectionInfo<Item>]
+    func sortedSectionInfos(sortSelector: Selector) -> [SectionInfo<Item>]
+}
+
+extension SectionIndexedProvider {
+    
+    func unsortedSectionInfos(sortSelector: Selector) -> [SectionInfo<Item>] {
+        // 各インデックスタイトルのセクション情報の配列を初期化する。
+        var sectionInfos = UILocalizedIndexedCollation.current().sectionTitles.map {
+            SectionInfo<Item>(sectionTitle: $0, items: [Item]())
+        }
+        
+        // 一時データを該当するセクション情報に割り当てる
+        sectoinDataSource.forEach {
+            let index = UILocalizedIndexedCollation.current().section(for: $0, collationStringSelector: sortSelector)
+            sectionInfos[index].items.append($0)
+        }
+        
+        return sectionInfos
+    }
+    
+    func sortedSectionInfos(sortSelector: Selector) -> [SectionInfo<Item>] {
+        return unsortedSectionInfos(sortSelector: sortSelector).flatMap { info -> SectionInfo<Item>? in
+            guard info.items.count != 0 else { return nil }
+            guard let sortedSection = UILocalizedIndexedCollation.current().sortedArray(from: info.items, collationStringSelector: sortSelector) as? [Item] else { return nil }
+            return SectionInfo<Item>(sectionTitle: info.sectionTitle, items: sortedSection)
+        }
+    }
 }
 
 class ViewController: UIViewController {
@@ -37,7 +71,7 @@ class ViewController: UIViewController {
         }
     }
     
-    lazy var tempDatas: [Store] = {
+    lazy var sectoinDataSource: [Store] = {
         var _datas = [Store]()
         _datas.append(Store(
             branchName: "新宿店",
@@ -208,46 +242,17 @@ class ViewController: UIViewController {
         return _datas
     }()
     
-    lazy var collation: UILocalizedIndexedCollation = {
-        var _collation = UILocalizedIndexedCollation.current()
-        return _collation
-    }()
-    
     // セクション情報の配列
-    var sectionInfos = [SectionInfo]()
+    var sectionInfos = [SectionInfo<Store>]()
     
     override func viewDidLoad() {
         super.viewDidLoad()
         
         tableView.register(UITableViewCell.self, forCellReuseIdentifier: "Cell")
         
-        // 未ソートのセクション情報の配列を生成する。
-        let unsortedSectionInfos: [SectionInfo] = { [weak self] in
-            guard let weakSelf = self else { return [SectionInfo]() }
-            
-            // 各インデックスタイトルのセクション情報の配列を初期化する。
-            var _sectionInfos = collation.sectionTitles.map {
-                SectionInfo(sectionTitle: $0, items: [Store]())
-            }
-            
-            // 一時データを該当するセクション情報に割り当てる
-            weakSelf.tempDatas.forEach {
-                let index = collation.section(for: $0, collationStringSelector: #selector(getter: Store.phoneticGuides))
-                _sectionInfos[index].items.append($0)
-            }
-            
-            return _sectionInfos
-        }()
-        
         // セクション情報内の配列をふりがな順でソートする。
         // データが１件もないセクションはセクション情報の配列から除外する。
-        sectionInfos = unsortedSectionInfos.flatMap { [weak self] info -> SectionInfo? in
-            guard let weakSelf = self else { return nil }
-            guard info.items.count != 0 else { return nil }
-            guard let sortedSection = weakSelf.collation.sortedArray(from: info.items, collationStringSelector: #selector(getter: Store.phoneticGuides)) as? [Store] else { return nil }
-            return SectionInfo(sectionTitle: info.sectionTitle, items: sortedSection)
-        }
-        
+        sectionInfos = sortedSectionInfos(sortSelector: #selector(getter: Store.phoneticGuides))
     }
 
 }
@@ -288,3 +293,5 @@ extension ViewController: UITableViewDataSource {
     }
     
 }
+
+extension ViewController: SectionIndexedProvider {}
